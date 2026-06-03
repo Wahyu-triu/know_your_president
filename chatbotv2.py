@@ -282,7 +282,7 @@ with st.sidebar:
         help="Path ke file CSV hasil scraping",
     )
 
-    load_btn = st.button("🔄 Muat Knowledge Base", use_container_width=True)
+    load_btn = st.button("🔄 Klik Untuk Set-up", use_container_width=True)
 
     st.markdown("---")
     st.markdown("**Tentang:**")
