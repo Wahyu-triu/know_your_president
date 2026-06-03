@@ -51,7 +51,14 @@ st.markdown("""
         background: linear-gradient(160deg, #c0392b 0%, #8B0000 100%);
         color: white;
     }
-    [data-testid="stSidebar"] * { color: white !important; }
+    [data-testid="stSidebar"] *:not(input):not(textarea):not(select):not(option) {
+        color: white !important;
+    }
+    [data-testid="stSidebar"] input,
+    [data-testid="stSidebar"] textarea,
+    [data-testid="stSidebar"] select {
+        color: black !important;
+    }
     [data-testid="stSidebar"] .stMarkdown h1,
     [data-testid="stSidebar"] .stMarkdown h2,
     [data-testid="stSidebar"] .stMarkdown h3 { color: #FFD700 !important; }
@@ -271,7 +278,7 @@ with st.sidebar:
 
     csv_file = st.text_input(
         "Path file CSV",
-        value="pidato_presiden.csv",
+        value="",
         help="Path ke file CSV hasil scraping",
     )
 
@@ -300,6 +307,17 @@ if "vector_store"  not in st.session_state: st.session_state.vector_store  = Non
 if "embeddings"    not in st.session_state: st.session_state.embeddings    = None
 if "kb_loaded"     not in st.session_state: st.session_state.kb_loaded     = False
 if "chunk_count"   not in st.session_state: st.session_state.chunk_count   = 0
+if "pending_query" not in st.session_state: st.session_state.pending_query = None
+
+# ── Helper: send message callback ──────────────────────────────────────────────
+
+def send_message():
+    """Callback to handle message sending and clear input."""
+    user_input = st.session_state.user_input
+    if user_input.strip():
+        st.session_state.chat_history.append({"role": "user", "content": user_input})
+        st.session_state.pending_query = user_input
+        st.session_state.user_input = ""
 
 # ── Load knowledge base ───────────────────────────────────────────────────────
 
@@ -334,7 +352,27 @@ st.markdown("## 💬 Know Your President From His Speech")
 if not st.session_state.kb_loaded:
     st.info("👈 Masukkan API key dan muat knowledge base terlebih dahulu dari sidebar.")
 else:
-    st.caption(f"Knowledge base aktif · {st.session_state.chunk_count} chunks · Model: {CHAT_MODEL}")
+    st.caption(f"Knowledge base aktif· Model: {CHAT_MODEL}")
+
+    # Process pending query before rendering chat
+    if st.session_state.pending_query:
+        with st.spinner("Mencari & menghasilkan jawaban …"):
+            try:
+                answer, sources = rag_query(
+                    question=st.session_state.pending_query,
+                    vector_store=st.session_state.vector_store,
+                    embeddings=st.session_state.embeddings,
+                    chat_history=st.session_state.chat_history[:-1],
+                    api_key=api_key,
+                )
+                st.session_state.chat_history.append({
+                    "role":    "assistant",
+                    "content": answer,
+                    "sources": sources,
+                })
+            except Exception as e:
+                st.error(f"❌ Error saat query: {e}")
+        st.session_state.pending_query = None
 
     # Render chat history
     for turn in st.session_state.chat_history:
@@ -358,33 +396,12 @@ else:
     st.markdown("---")
     col1, col2 = st.columns([5, 1])
     with col1:
-        user_input = st.text_input(
+        st.text_input(
             "Pertanyaan",
             placeholder="Contoh: Apa yang disampaikan Presiden tentang ekonomi?",
             label_visibility="collapsed",
             key="user_input",
+            on_change=send_message,
         )
     with col2:
-        send_btn = st.button("Kirim ➤", use_container_width=True)
-
-    if send_btn and user_input.strip():
-        st.session_state.chat_history.append({"role": "user", "content": user_input})
-
-        with st.spinner("Mencari & menghasilkan jawaban …"):
-            try:
-                answer, sources = rag_query(
-                    question=user_input,
-                    vector_store=st.session_state.vector_store,
-                    embeddings=st.session_state.embeddings,
-                    chat_history=st.session_state.chat_history[:-1],
-                    api_key=api_key,
-                )
-                st.session_state.chat_history.append({
-                    "role":    "assistant",
-                    "content": answer,
-                    "sources": sources,
-                })
-            except Exception as e:
-                st.error(f"❌ Error saat query: {e}")
-
-        st.rerun()
+        st.button("Kirim ➤", use_container_width=True, on_click=send_message)
