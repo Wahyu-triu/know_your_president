@@ -1,0 +1,9 @@
+streamlit
+faiss-cpu
+pandas
+dateparser
+langchain
+langchain-google-genai
+langchain-community
+langchain-text-splitters
+google-generativeai
